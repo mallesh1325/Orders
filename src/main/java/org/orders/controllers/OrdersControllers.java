@@ -23,10 +23,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("orders/")
 public class OrdersControllers {
 
-	@Autowired
-	OrderService orderService;
+	final private OrderService orderService;
 
-	private static final Logger log = LoggerFactory.getLogger(OrderService.class);
+	public OrdersControllers(OrderService orderService){
+		this.orderService = orderService;
+	}
+
+	private static final Logger log = LoggerFactory.getLogger(OrdersControllers.class);
 
 	@GetMapping("getOrderById/{id}")
 	public ResponseEntity<OrderDto> getOrder(@PathVariable String id) {

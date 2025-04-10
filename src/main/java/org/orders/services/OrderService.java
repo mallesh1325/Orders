@@ -19,96 +19,100 @@ import org.springframework.stereotype.Service;
 @Service
 public class OrderService {
 
-	@Autowired
-	OrdersRepository ordersRepository;
+    private final OrdersRepository ordersRepository;
+    private final KafkaTemplate<String, String> kafkaTemplate;
 
-	@Autowired
-	private KafkaTemplate<String, String> kafkaTemplate;
+    public OrderService(OrdersRepository ordersRepository, KafkaTemplate<String, String> kafkaTemplate) {
+        this.ordersRepository = ordersRepository;
+        this.kafkaTemplate = kafkaTemplate;
+    }
 
-	private static final Logger log = LoggerFactory.getLogger(OrderService.class);
+    private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
-	public OrderDto getOrders(String id) {
+    public OrderDto getOrders(String id) {
 
-		if (id == null || id.isEmpty()) {
-			throw new OrderNotFoundException("Order id not be null or emoty " + id);
-		}
-		Orders order = ordersRepository.findById(id)
-				.orElseThrow(() -> new OrderNotFoundException("Order with ID " + id + " not found"));
-		return OrderUtills.entityToDto(order);
-	}
+        if (id == null || id.isEmpty()) {
+            throw new OrderNotFoundException("Order id not be null or emoty " + id);
+        }
 
-	public List<OrderDto> allOrders() {
 
-		List<OrderDto> allOrders = StreamSupport.stream(ordersRepository.findAll().spliterator(), false)
-				.map(OrderUtills::entityToDto).collect(Collectors.toList());
+        Orders order = ordersRepository.findById(id)
+                .orElseThrow(() -> new OrderNotFoundException("Order with ID " + id + " not found"));
+        return OrderUtills.entityToDto(order);
+    }
 
-		if (allOrders.isEmpty()) {
-			throw new OrderNotFoundException("No orders found");
-		}
+    public List<OrderDto> allOrders() {
 
-		return allOrders;
+        List<OrderDto> allOrders = StreamSupport.stream(ordersRepository.findAll().spliterator(), false)
+                .map(OrderUtills::entityToDto).collect(Collectors.toList());
 
-	}
+        if (allOrders.isEmpty()) {
+            throw new OrderNotFoundException("No orders found");
+        }
 
-	public List<OrderDto> addOrder(List<OrderDto> orderDto) throws OrderProcessingException {
+        return allOrders;
 
-		try {
-			log.info("Creating order: {}", orderDto);
+    }
 
-			List<Orders> addOrder = orderDto.stream().map(OrderUtills::dtoToEntity).collect(Collectors.toList());
+    public List<OrderDto> addOrder(List<OrderDto> orderDto) throws OrderProcessingException {
 
-			List<Orders> ordersSave = StreamSupport.stream(ordersRepository.saveAll(addOrder).spliterator(), false)
-					.toList();
-			ordersSave.forEach(order -> {
+        try {
+            log.info("Creating order: {}", orderDto);
 
-				kafkaTemplate.send("order_topic", order.getId());
+            List<Orders> addOrder = orderDto.stream().map(OrderUtills::dtoToEntity).collect(Collectors.toList());
 
-				log.info("Sending Kafka Notification for order creation with ID: {} ", order.getId());
-			});
+            List<Orders> ordersSave = StreamSupport.stream(ordersRepository.saveAll(addOrder).spliterator(), false)
+                    .toList();
+            ordersSave.forEach(order -> {
 
-			return ordersSave.stream().map(OrderUtills::entityToDto) // Convert Entity to DTO
-					.collect(Collectors.toList());
+                kafkaTemplate.send("order_topic", order.getId());
 
-		} catch (Exception ex) {
+                log.info("Sending Kafka Notification for order creation with ID: {} ", order.getId());
+            });
 
-			log.error("Error occurred while creating the order: {}", ex.getMessage(), ex);
+            return ordersSave.stream().map(OrderUtills::entityToDto) // Convert Entity to DTO
+                    .collect(Collectors.toList());
 
-			throw new OrderProcessingException("Failed to create order", ex);
-		}
-	}
+        } catch (Exception ex) {
 
-	public OrderDto updateOrderById(OrderDto orderDto, String id) throws OrderProcessingException {
-		try {
-			Orders exstingOrder = ordersRepository.findById(id)
-					.orElseThrow(() -> new OrderNotFoundException("Order not found with ID: " + id));
+            log.error("Error occurred while creating the order: {}", ex.getMessage(), ex);
 
-			if (orderDto.getId() != null && !orderDto.getId().equals(exstingOrder.getId())) {
-				throw new OrderNotFoundException("The ID from the provider does not match the DB ID.");
-			}
+            throw new OrderProcessingException("Failed to create order", ex);
+        }
+    }
 
-			if (orderDto.getId() != null)
-				exstingOrder.setId(orderDto.getId());
-			if (orderDto.getName() != null)
-				exstingOrder.setName(orderDto.getName());
-			if (orderDto.getPrice() != null)
-				exstingOrder.setPrice(orderDto.getPrice());
-			if (orderDto.getQantity() != null)
-				exstingOrder.setQantity(orderDto.getQantity());
+    public OrderDto updateOrderById(OrderDto orderDto, String id) throws OrderProcessingException {
+        try {
+            Orders exstingOrder = ordersRepository.findById(id)
+                    .orElseThrow(() -> new OrderNotFoundException("Order not found with ID: " + id));
 
-			Orders updatedOrder = ordersRepository.save(exstingOrder);
+            if (orderDto.getId() != null && !orderDto.getId().equals(exstingOrder.getId())) {
+                throw new OrderNotFoundException("The ID from the provider does not match the DB ID.");
+            }
 
-			kafkaTemplate.send("order_topic", updatedOrder.getId());
-			log.info("Sent Kafka Notification for order update: {}", updatedOrder.getId());
+            if (orderDto.getId() != null)
+                exstingOrder.setId(orderDto.getId());
+            if (orderDto.getName() != null)
+                exstingOrder.setName(orderDto.getName());
+            if (orderDto.getPrice() != null)
+                exstingOrder.setPrice(orderDto.getPrice());
+            if (orderDto.getQantity() != null)
+                exstingOrder.setQantity(orderDto.getQantity());
 
-			return OrderUtills.entityToDto(updatedOrder);
+            Orders updatedOrder = ordersRepository.save(exstingOrder);
 
-		} catch (OrderNotFoundException ex) {
-			throw ex;
+            kafkaTemplate.send("order_topic", updatedOrder.getId());
+            log.info("Sent Kafka Notification for order update: {}", updatedOrder.getId());
 
-		} catch (Exception ex) {
-			log.error("Error occurred while updating order: {}", ex.getMessage(), ex);
-			throw new OrderProcessingException("Failed to update order", ex);
-		}
+            return OrderUtills.entityToDto(updatedOrder);
 
-	}
+        } catch (OrderNotFoundException ex) {
+            throw ex;
+
+        } catch (Exception ex) {
+            log.error("Error occurred while updating order: {}", ex.getMessage(), ex);
+            throw new OrderProcessingException("Failed to update order", ex);
+        }
+
+    }
 }

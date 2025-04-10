@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -11,9 +13,11 @@ import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.orders.controllers.OrdersControllers;
 import org.orders.dto.OrderDto;
 import org.orders.exception.OrderNotFoundException;
@@ -51,6 +55,19 @@ public class OrderControllerTest {
 		assertEquals(HttpStatus.OK, response.getStatusCode());
 		assertEquals(orderDto, response.getBody());
 
+	}
+
+	
+
+	@Test
+	public void testGetOrder_InvalidId_ThrowsException() {
+		// Arrange
+		String invalidOrderId = "";
+
+		// Act & Assert
+		assertThrows(OrderNotFoundException.class, () -> {
+			orderController.getOrder(invalidOrderId);
+		});
 	}
 
 	@Test
